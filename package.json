@@ -1,0 +1,17 @@
+{
+  "name": "torrent-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for searching torrents via Prowlarr",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "discord.js": "^14.16.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
