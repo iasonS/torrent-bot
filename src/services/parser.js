@@ -6,7 +6,7 @@ const SYSTEM_PROMPT = `You parse natural language torrent search queries into st
 
 Extract these fields from the user's query:
 - title: the movie/show/game name (required)
-- quality: resolution like 2160p, 1080p, 720p, etc. Map "4k" to "2160p", "8k" to "4320p"
+- quality: resolution like 2160p, 1080p, 720p, etc. Map "4k" to "2160p", "2k" to "1080p", "8k" to "4320p", "8k" to "4320p"
 - language: audio language if specified
 - subtitles: subtitle language if specified
 - type: "movie", "tv", "game", "music", "software", or null
