@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 function formatSize(bytes) {
   if (!bytes) return "?";
@@ -12,7 +12,7 @@ function formatSize(bytes) {
   return `${size.toFixed(1)} ${units[i]}`;
 }
 
-function buildResultsEmbed(query, parsed, results) {
+function buildResultsEmbed(query, parsed, results, timing) {
   if (results.length === 0) {
     return {
       embeds: [
@@ -21,7 +21,6 @@ function buildResultsEmbed(query, parsed, results) {
           .setDescription("Try a broader search or different keywords.")
           .setColor(0xff4444),
       ],
-      components: [],
     };
   }
 
@@ -33,31 +32,30 @@ function buildResultsEmbed(query, parsed, results) {
     return `**${i + 1}.** ${r.title}\n\`${size}\` · \`${seeders}S/${leechers}L\` · ${indexer}`;
   });
 
+  const footerParts = [`Query: "${query}" · ${results.length} results`];
+  if (timing) {
+    const parts = [`⏱ Claude: ${timing.parseMs}ms`];
+    if (timing.tmdbMs != null) parts.push(`TMDb: ${timing.tmdbMs}ms`);
+    parts.push(`Prowlarr: ${timing.searchMs}ms`);
+    if (timing.filterMs != null) parts.push(`Filter: ${timing.filterMs}ms`);
+    parts.push(`Total: ${timing.totalMs}ms`);
+    footerParts.push(parts.join(" | "));
+  }
+
   const embed = new EmbedBuilder()
     .setTitle(`🔍 ${parsed.title}${parsed.quality ? ` [${parsed.quality}]` : ""}`)
     .setDescription(lines.join("\n\n"))
     .setColor(0x00cc88)
-    .setFooter({ text: `Query: "${query}" · ${results.length} results` })
+    .setFooter({ text: footerParts.join(" | ") })
     .setTimestamp();
 
-  return { embeds: [embed], components: [] };
+  return { embeds: [embed] };
 }
 
 function buildMagnetMessage(results) {
-  // Send magnet links as a follow-up (too long for embed usually)
-  const lines = results.map((r, i) => {
-    const link = r.magnetUrl || r.downloadUrl;
-    // Discord truncates very long messages, so just send the magnet
-    return `**${i + 1}.** [${truncate(r.title, 60)}](${link})`;
-  });
-
-  // If any magnet URLs are too long for markdown links, fall back to plain text
-  const hasLongMagnets = results.some(
-    (r) => (r.magnetUrl || "").length > 1800
-  );
+  const hasLongMagnets = results.some((r) => (r.magnetUrl || "").length > 1800);
 
   if (hasLongMagnets) {
-    // Send magnets as plain text (clickable in Discord desktop)
     const plain = results.map((r, i) => {
       const link = r.magnetUrl || r.downloadUrl;
       return `**${i + 1}.** ${truncate(r.title, 60)}\n${link}`;
@@ -65,6 +63,10 @@ function buildMagnetMessage(results) {
     return plain.join("\n\n");
   }
 
+  const lines = results.map((r, i) => {
+    const link = r.magnetUrl || r.downloadUrl;
+    return `**${i + 1}.** [${truncate(r.title, 60)}](${link})`;
+  });
   return lines.join("\n");
 }
 
@@ -72,4 +74,19 @@ function truncate(str, max) {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
 }
 
-module.exports = { buildResultsEmbed, buildMagnetMessage };
+function splitMessage(text, maxLen) {
+  if (text.length <= maxLen) return [text];
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) { chunks.push(remaining); break; }
+    let split = remaining.lastIndexOf("\n\n", maxLen);
+    if (split === -1) split = remaining.lastIndexOf("\n", maxLen);
+    if (split === -1) split = maxLen;
+    chunks.push(remaining.slice(0, split));
+    remaining = remaining.slice(split).trimStart();
+  }
+  return chunks;
+}
+
+module.exports = { buildResultsEmbed, buildMagnetMessage, splitMessage };

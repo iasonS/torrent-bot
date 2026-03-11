@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { parseQuery } = require("../services/parser");
 const { search } = require("../services/prowlarr");
 const { buildResultsEmbed, buildMagnetMessage } = require("../utils/embed");
@@ -15,56 +15,52 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
   const query = interaction.options.getString("query");
+  const t0 = Date.now();
 
   await interaction.deferReply();
 
   try {
-    // Step 1: Parse natural language query with Claude Haiku
+    const t1 = Date.now();
     const parsed = await parseQuery(query);
-    console.log(`Parsed "${query}" →`, JSON.stringify(parsed));
+    const parseMs = Date.now() - t1;
 
-    // Step 2: Search Prowlarr
+    const t2 = Date.now();
     const results = await search(parsed);
-    console.log(`Found ${results.length} results`);
+    const searchMs = Date.now() - t2;
+    const totalMs = Date.now() - t0;
 
-    // Step 3: Send results embed
-    const embed = buildResultsEmbed(query, parsed, results);
-    await interaction.editReply(embed);
-
-    // Step 4: Send magnet links as follow-up if results exist
-    if (results.length > 0) {
-      const magnets = buildMagnetMessage(results);
-      // Split into chunks if too long for Discord (2000 char limit)
-      const chunks = splitMessage(magnets, 1900);
-      for (const chunk of chunks) {
-        await interaction.followUp({ content: chunk });
-      }
+    if (results.length === 0) {
+      await interaction.editReply({
+        content: `**No results found** for \`${query}\`
+Try a different search term or check if Prowlarr has relevant indexers configured.
+\`⏱ Claude: ${parseMs}ms | Prowlarr: ${searchMs}ms | Total: ${totalMs}ms\``,
+      });
+      return;
     }
+
+    const embed = buildResultsEmbed(query, parsed, results, { parseMs, searchMs, totalMs });
+    const magnets = buildMagnetMessage(results);
+
+    const clearButton = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("clear_messages")
+        .setLabel("🗑️ Clear")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    await interaction.editReply({
+      content: magnets,
+      embeds: embed.embeds,
+      components: [clearButton],
+    });
   } catch (err) {
     console.error("Search error:", err);
-    await interaction.editReply({
-      content: `Search failed: ${err.message}`,
-    });
-  }
-}
-
-function splitMessage(text, maxLen) {
-  if (text.length <= maxLen) return [text];
-  const chunks = [];
-  let remaining = text;
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLen) {
-      chunks.push(remaining);
-      break;
+    if (err.message?.includes("rate limit") || err.message?.includes("Rate limit")) {
+      await interaction.editReply({ content: "Claude is currently rate limited. Please try again in a moment." });
+      return;
     }
-    // Find a good split point (newline)
-    let split = remaining.lastIndexOf("\n\n", maxLen);
-    if (split === -1) split = remaining.lastIndexOf("\n", maxLen);
-    if (split === -1) split = maxLen;
-    chunks.push(remaining.slice(0, split));
-    remaining = remaining.slice(split).trimStart();
+    await interaction.editReply({ content: `Search failed: ${err.message}` });
   }
-  return chunks;
 }
 
 module.exports = { data, execute };
