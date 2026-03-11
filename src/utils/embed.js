@@ -34,7 +34,8 @@ function buildResultsEmbed(query, parsed, results, timing) {
 
   const footerParts = [`Query: "${query}" · ${results.length} results`];
   if (timing) {
-    const parts = [`⏱ Claude: ${timing.parseMs}ms`];
+    const parts = [`⏱ Parse: ${timing.parseMs}ms`];
+    if (timing.titlerMs != null) parts.push(`Title: ${timing.titlerMs}ms`);
     if (timing.tmdbMs != null) parts.push(`TMDb: ${timing.tmdbMs}ms`);
     parts.push(`Prowlarr: ${timing.searchMs}ms`);
     if (timing.filterMs != null) parts.push(`Filter: ${timing.filterMs}ms`);
