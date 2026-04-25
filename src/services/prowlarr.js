@@ -1,5 +1,10 @@
+const RequestQueue = require("./queue");
+
 const PROWLARR_URL = process.env.PROWLARR_URL || "http://prowlarr:9696";
 const PROWLARR_API_KEY = process.env.PROWLARR_API_KEY;
+
+// Rate-limited queue: 1 concurrent request, 2.5s delay to avoid FlareSolverr overload
+const queue = new RequestQueue(1, 2500);
 
 // Known bad quality tags to filter out unless user explicitly requests them
 const BAD_QUALITY_TAGS = ["CAM", "CAMRIP", "TS", "TELESYNC", "SCR", "SCREENER", "HDCAM", "R5", "DVDSCR"];
@@ -23,70 +28,93 @@ function titleMatchesQuery(resultTitle, parsedTitle) {
   return matchCount >= Math.ceil(queryWords.length / 2);
 }
 
-async function search(parsed) {
-  // Build search query from parsed fields
-  let query = parsed.title;
-  if (parsed.quality) query += " " + parsed.quality;
-  if (parsed.language) query += " " + parsed.language;
-  if (parsed.season != null)
-    query += " S" + String(parsed.season).padStart(2, "0");
-  if (parsed.episode != null)
-    query += "E" + String(parsed.episode).padStart(2, "0");
+async function search(parsed, retries = 3) {
+  return queue.add(async () => {
+    // Build search query from parsed fields
+    let query = parsed.title;
+    if (parsed.quality) query += " " + parsed.quality;
+    if (parsed.language) query += " " + parsed.language;
+    if (parsed.season != null)
+      query += " S" + String(parsed.season).padStart(2, "0");
+    if (parsed.episode != null)
+      query += "E" + String(parsed.episode).padStart(2, "0");
 
-  const params = new URLSearchParams({ query });
+    const params = new URLSearchParams({ query });
 
-  // Map type to Prowlarr categories
-  const categoryMap = {
-    movie: [2000],
-    tv: [5000],
-    game: [4000],
-    music: [3000],
-    software: [4000],
-  };
-  if (parsed.type && categoryMap[parsed.type]) {
-    for (const cat of categoryMap[parsed.type]) {
-      params.append("categories", cat);
+    // Map type to Prowlarr categories
+    const categoryMap = {
+      movie: [2000],
+      tv: [5000],
+      game: [4000],
+      music: [3000],
+      software: [4000],
+    };
+    if (parsed.type && categoryMap[parsed.type]) {
+      for (const cat of categoryMap[parsed.type]) {
+        params.append("categories", cat);
+      }
     }
-  }
 
-  const url = PROWLARR_URL + "/api/v1/search?" + params;
+    const url = PROWLARR_URL + "/api/v1/search?" + params;
 
-  const res = await fetch(url, {
-    headers: { "X-Api-Key": PROWLARR_API_KEY },
+    let lastError;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: { "X-Api-Key": PROWLARR_API_KEY },
+          timeout: 30000,
+        });
+
+        if (!res.ok) {
+          // Retry on 502/503 (Prowlarr/FlareSolverr overloaded)
+          if ((res.status === 502 || res.status === 503) && attempt < retries) {
+            const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+            console.log(`Prowlarr ${res.status}, retrying in ${backoff}ms (attempt ${attempt}/${retries})`);
+            await new Promise((r) => setTimeout(r, backoff));
+            continue;
+          }
+          throw new Error("Prowlarr API error: " + res.status + " " + res.statusText);
+        }
+
+        const results = await res.json();
+
+        // Filter: must have seeders and either magnet or download link
+        let valid = results.filter(
+          (r) => r.seeders > 0 && (r.magnetUrl || r.downloadUrl)
+        );
+
+        // Filter out bad quality releases (CAM, TS, SCR, etc.)
+        const goodQuality = valid.filter((r) => !isBadQuality(r.title));
+        if (goodQuality.length > 0) valid = goodQuality;
+
+        // Filter out results that don't match the queried title
+        const titleMatched = valid.filter((r) => titleMatchesQuery(r.title, parsed.title));
+        if (titleMatched.length > 0) valid = titleMatched;
+
+        // Sort by seeders descending
+        valid.sort((a, b) => b.seeders - a.seeders);
+
+        // Filter by subtitle language if requested (check title string)
+        let filtered = valid;
+        if (parsed.subtitles) {
+          const sub = parsed.subtitles.toLowerCase();
+          const withSubs = valid.filter((r) => r.title.toLowerCase().includes(sub));
+          if (withSubs.length > 0) filtered = withSubs;
+        }
+
+        return filtered.slice(0, 10);
+      } catch (err) {
+        lastError = err;
+        if (attempt < retries) {
+          const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          console.log(`Search attempt ${attempt}/${retries} failed, retrying in ${backoff}ms: ${err.message}`);
+          await new Promise((r) => setTimeout(r, backoff));
+        }
+      }
+    }
+
+    throw lastError || new Error("Search failed after retries");
   });
-
-  if (!res.ok) {
-    throw new Error("Prowlarr API error: " + res.status + " " + res.statusText);
-  }
-
-  const results = await res.json();
-
-  // Filter: must have seeders and either magnet or download link
-  let valid = results.filter(
-    (r) => r.seeders > 0 && (r.magnetUrl || r.downloadUrl)
-  );
-
-  // Filter out bad quality releases (CAM, TS, SCR, etc.)
-  const goodQuality = valid.filter((r) => !isBadQuality(r.title));
-  if (goodQuality.length > 0) valid = goodQuality;
-  // If filtering removes everything, fall back to unfiltered (user may want CAM)
-
-  // Filter out results that don't match the queried title
-  const titleMatched = valid.filter((r) => titleMatchesQuery(r.title, parsed.title));
-  if (titleMatched.length > 0) valid = titleMatched;
-
-  // Sort by seeders descending
-  valid.sort((a, b) => b.seeders - a.seeders);
-
-  // Filter by subtitle language if requested (check title string)
-  let filtered = valid;
-  if (parsed.subtitles) {
-    const sub = parsed.subtitles.toLowerCase();
-    const withSubs = valid.filter((r) => r.title.toLowerCase().includes(sub));
-    if (withSubs.length > 0) filtered = withSubs;
-  }
-
-  return filtered.slice(0, 10);
 }
 
 module.exports = { search };

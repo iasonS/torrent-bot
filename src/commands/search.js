@@ -3,6 +3,10 @@ const { parseQuery } = require("../services/parser");
 const { search } = require("../services/prowlarr");
 const { buildResultsEmbed, buildMagnetMessage } = require("../utils/embed");
 
+// Rate limiting: max 1 search per user every 5 seconds
+const userCooldowns = new Map();
+const COOLDOWN_MS = 5000;
+
 const data = new SlashCommandBuilder()
   .setName("search")
   .setDescription("Search for torrents using natural language")
@@ -14,6 +18,20 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction) {
+  const userId = interaction.user.id;
+  const now = Date.now();
+  const lastSearch = userCooldowns.get(userId) || 0;
+
+  if (now - lastSearch < COOLDOWN_MS) {
+    const waitTime = Math.ceil((COOLDOWN_MS - (now - lastSearch)) / 1000);
+    await interaction.reply({
+      content: `⏳ Please wait ${waitTime}s before searching again.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  userCooldowns.set(userId, now);
   const query = interaction.options.getString("query");
   const t0 = Date.now();
 
