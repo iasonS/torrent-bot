@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, AttachmentBuilder } = require("discord.js");
 const { processImage } = require("../services/ascii.js");
 
 const data = new SlashCommandBuilder()
@@ -39,19 +39,25 @@ async function execute(interaction) {
     const result = await processImage(imageUrl, { width, both });
 
     if (both && result.inverted) {
-      // Send normal version (single message)
+      // Send normal version as file
+      const normalFile = new AttachmentBuilder(Buffer.from(result.normal), { name: `ascii_normal_w${width}.txt` });
       await interaction.editReply({
-        content: `**ASCII Art (Normal)** - Width: ${width}\n\n\`\`\`\n${result.normal}\n\`\`\``,
+        content: `**ASCII Art (Normal)** - Width: ${width}`,
+        files: [normalFile],
       });
 
-      // Send inverted version (single message)
+      // Send inverted version as file
+      const invertedFile = new AttachmentBuilder(Buffer.from(result.inverted), { name: `ascii_inverted_w${width}.txt` });
       await interaction.followUp({
-        content: `**ASCII Art (Inverted)** - Width: ${width}\n\n\`\`\`\n${result.inverted}\n\`\`\``,
+        content: `**ASCII Art (Inverted)** - Width: ${width}`,
+        files: [invertedFile],
       });
     } else {
       const label = inverted ? "(Inverted)" : "(Normal)";
+      const file = new AttachmentBuilder(Buffer.from(result.normal), { name: `ascii_${label.toLowerCase()}_w${width}.txt` });
       await interaction.editReply({
-        content: `**ASCII Art ${label}** - Width: ${width}\n\n\`\`\`\n${result.normal}\n\`\`\``,
+        content: `**ASCII Art ${label}** - Width: ${width}`,
+        files: [file],
       });
     }
   } catch (error) {
