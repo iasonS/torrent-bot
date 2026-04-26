@@ -3,7 +3,8 @@ const https = require("https");
 const http = require("http");
 const { Buffer } = require("buffer");
 
-const CHARS = "@%#*+=-:. ";
+// Mid-range character set with more gradations for better contrast
+const CHARS = " .,;:-=+*#%@";
 
 async function fetchImage(url) {
   return new Promise((resolve, reject) => {
