@@ -19,6 +19,13 @@ const data = new SlashCommandBuilder()
   )
   .addBooleanOption((opt) =>
     opt.setName("both").setDescription("Generate both normal and inverted versions")
+  )
+  .addIntegerOption((opt) =>
+    opt
+      .setName("brightness")
+      .setDescription("Brightness adjustment (-50 to +50, default: 0)")
+      .setMinValue(-50)
+      .setMaxValue(50)
   );
 
 async function execute(interaction) {
@@ -29,6 +36,7 @@ async function execute(interaction) {
     const width = interaction.options.getInteger("width") || 100;
     const inverted = interaction.options.getBoolean("inverted") || false;
     const both = interaction.options.getBoolean("both") || false;
+    const brightness = interaction.options.getInteger("brightness") || 0;
 
     // Handle attachment URLs from Discord
     let imageUrl = source;
@@ -36,8 +44,7 @@ async function execute(interaction) {
       imageUrl = interaction.options.data[0].attachment.url;
     }
 
-    const result = await processImage(imageUrl, { width, both });
-    console.log(`ASCII command: both=${both}, has inverted=${!!result.inverted}`);
+    const result = await processImage(imageUrl, { width, both, brightness });
 
     if (both && result.inverted) {
       // Send normal version as file

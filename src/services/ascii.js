@@ -19,13 +19,18 @@ async function fetchImage(url) {
 }
 
 async function convertToAscii(imageBuffer, options = {}) {
-  const { width = 100, invert = false } = options;
+  const { width = 100, invert = false, brightness = 0 } = options;
 
   try {
     // Get image metadata and convert to grayscale
-    const pipeline = sharp(imageBuffer)
+    let pipeline = sharp(imageBuffer)
       .grayscale()
       .resize(width, Math.floor(width * 0.55), { fit: "fill" });
+
+    // Apply brightness adjustment if provided
+    if (brightness !== 0) {
+      pipeline = pipeline.modulate({ brightness: 1 + brightness / 100 });
+    }
 
     const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
 
@@ -49,7 +54,7 @@ async function convertToAscii(imageBuffer, options = {}) {
 }
 
 async function processImage(input, options = {}) {
-  const { width = 100, both = false } = options;
+  const { width = 100, both = false, brightness = 0 } = options;
 
   let imageBuffer;
   if (input.startsWith("http")) {
@@ -58,9 +63,9 @@ async function processImage(input, options = {}) {
     imageBuffer = Buffer.from(input);
   }
 
-  const normal = await convertToAscii(imageBuffer, { width, invert: false });
+  const normal = await convertToAscii(imageBuffer, { width, invert: false, brightness });
   if (both) {
-    const inverted = await convertToAscii(imageBuffer, { width, invert: true });
+    const inverted = await convertToAscii(imageBuffer, { width, invert: true, brightness });
     return { normal, inverted };
   }
 
