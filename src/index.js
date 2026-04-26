@@ -4,6 +4,7 @@ const movieCommand = require("./commands/movie");
 const cancelCommand = require("./commands/cancel");
 const asciiCommand = require("./commands/ascii");
 const pingCommand = require("./commands/ping");
+const { app: dashboardApp, PORT: DASHBOARD_PORT } = require("./dashboard");
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
@@ -18,6 +19,12 @@ const client = new Client({
 
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
+
+  // Start dashboard server
+  dashboardApp.listen(DASHBOARD_PORT, () => {
+    console.log(`Dashboard running on http://localhost:${DASHBOARD_PORT}`);
+  });
+
   const rest = new REST().setToken(DISCORD_BOT_TOKEN);
   try {
     const commands = [searchCommand.data.toJSON(), movieCommand.data.toJSON(), cancelCommand.data.toJSON(), asciiCommand.data.toJSON(), pingCommand.data.toJSON()];

@@ -2,6 +2,7 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = re
 const { parseQuery } = require("../services/parser");
 const { search } = require("../services/prowlarr");
 const { buildResultsEmbed, buildMagnetMessage } = require("../utils/embed");
+const { recordSearch, recordError } = require("../stats");
 
 // Rate limiting: max 1 search per user every 5 seconds
 const userCooldowns = new Map();
@@ -38,6 +39,7 @@ async function execute(interaction) {
   await interaction.deferReply();
 
   try {
+    recordSearch(query, "search");
     const t1 = Date.now();
     const parsed = await parseQuery(query);
     const parseMs = Date.now() - t1;

@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require("discord.js");
 const { processImage } = require("../services/ascii.js");
+const { recordSearch, recordError } = require("../stats");
 
 const data = new SlashCommandBuilder()
   .setName("ascii")
@@ -38,10 +39,12 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction) {
+  const source = interaction.options.getString("source");
+  recordSearch(source.substring(0, 100), "ascii");
+
   await interaction.deferReply();
 
   try {
-    const source = interaction.options.getString("source");
     const width = interaction.options.getInteger("width") || 100;
     const inverted = interaction.options.getBoolean("inverted") || false;
     const both = interaction.options.getBoolean("both") || false;

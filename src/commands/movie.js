@@ -5,6 +5,7 @@ const { lookupMovie, isReleased, formatReleaseDate } = require("../services/tmdb
 const { search } = require("../services/prowlarr");
 const { filterRelevant } = require("../services/relevance");
 const { buildResultsEmbed, buildMagnetMessage, splitMessage } = require("../utils/embed");
+const { recordSearch, recordError } = require("../stats");
 
 const TIMEOUT_MS = 25000;
 
@@ -20,6 +21,7 @@ const data = new SlashCommandBuilder()
 
 async function execute(interaction) {
   const query = interaction.options.getString("query");
+  recordSearch(query, "movie");
   const t0 = Date.now();
 
   await interaction.deferReply();
