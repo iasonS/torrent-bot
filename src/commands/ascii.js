@@ -37,6 +37,7 @@ async function execute(interaction) {
     }
 
     const result = await processImage(imageUrl, { width, both });
+    console.log(`ASCII command: both=${both}, has inverted=${!!result.inverted}`);
 
     if (both && result.inverted) {
       // Send normal version as file
