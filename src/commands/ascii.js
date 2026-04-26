@@ -38,56 +38,21 @@ async function execute(interaction) {
 
     const result = await processImage(imageUrl, { width, both });
 
-    // Split long ASCII art into Discord message chunks (1950 char limit for code blocks)
-    const splitMessage = (text, maxLength = 1950) => {
-      const messages = [];
-      let current = "";
-      for (const line of text.split("\n")) {
-        if ((current + line + "\n").length > maxLength) {
-          if (current) messages.push(current);
-          current = line + "\n";
-        } else {
-          current += line + "\n";
-        }
-      }
-      if (current) messages.push(current);
-      return messages;
-    };
-
     if (both && result.inverted) {
-      const normalChunks = splitMessage(result.normal);
-      const invertedChunks = splitMessage(result.inverted);
-
-      // Send normal version
+      // Send normal version (single message)
       await interaction.editReply({
-        content: `**ASCII Art (Normal)** - Width: ${width}\n\n\`\`\`\n${normalChunks[0]}\n\`\`\``,
+        content: `**ASCII Art (Normal)** - Width: ${width}\n\n\`\`\`\n${result.normal}\n\`\`\``,
       });
 
-      // Send additional normal chunks if needed
-      for (let i = 1; i < normalChunks.length; i++) {
-        await interaction.followUp({ content: `\`\`\`\n${normalChunks[i]}\n\`\`\`` });
-      }
-
-      // Send inverted version in separate message
+      // Send inverted version (single message)
       await interaction.followUp({
-        content: `\n**ASCII Art (Inverted)** - Width: ${width}\n\n\`\`\`\n${invertedChunks[0]}\n\`\`\``,
+        content: `**ASCII Art (Inverted)** - Width: ${width}\n\n\`\`\`\n${result.inverted}\n\`\`\``,
       });
-
-      // Send additional inverted chunks if needed
-      for (let i = 1; i < invertedChunks.length; i++) {
-        await interaction.followUp({ content: `\`\`\`\n${invertedChunks[i]}\n\`\`\`` });
-      }
     } else {
-      const chunks = splitMessage(result.normal);
       const label = inverted ? "(Inverted)" : "(Normal)";
-
       await interaction.editReply({
-        content: `**ASCII Art ${label}** - Width: ${width}\n\n\`\`\`\n${chunks[0]}\n\`\`\``,
+        content: `**ASCII Art ${label}** - Width: ${width}\n\n\`\`\`\n${result.normal}\n\`\`\``,
       });
-
-      for (let i = 1; i < chunks.length; i++) {
-        await interaction.followUp({ content: `\`\`\`\n${chunks[i]}\n\`\`\`` });
-      }
     }
   } catch (error) {
     console.error("ASCII command error:", error);
