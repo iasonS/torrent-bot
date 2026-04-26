@@ -19,7 +19,7 @@ async function fetchImage(url) {
 }
 
 async function convertToAscii(imageBuffer, options = {}) {
-  const { width = 100, invert = false, brightness = 0 } = options;
+  const { width = 100, invert = false, brightness = 0, mode = "brightness" } = options;
 
   try {
     // Get image metadata and convert to grayscale
@@ -33,13 +33,20 @@ async function convertToAscii(imageBuffer, options = {}) {
     }
 
     const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
+    const height = Math.floor(width * 0.55);
+    let processedData = data;
+
+    // Apply edge detection if mode is "edges"
+    if (mode === "edges") {
+      processedData = detectEdges(data, width, height);
+    }
 
     const chars = invert ? CHARS.split("").reverse().join("") : CHARS;
     let ascii = "";
 
-    for (let i = 0; i < data.length; i++) {
-      const brightness = data[i];
-      const charIndex = Math.floor((brightness / 255) * (CHARS.length - 1));
+    for (let i = 0; i < processedData.length; i++) {
+      const value = processedData[i];
+      const charIndex = Math.floor((value / 255) * (CHARS.length - 1));
       ascii += chars[charIndex];
 
       if ((i + 1) % width === 0) {
@@ -53,8 +60,47 @@ async function convertToAscii(imageBuffer, options = {}) {
   }
 }
 
+function detectEdges(data, width, height) {
+  const edges = new Uint8ClampedArray(data.length);
+
+  // Sobel edge detection
+  for (let i = 0; i < height; i++) {
+    for (let j = 0; j < width; j++) {
+      const idx = i * width + j;
+
+      // Skip edges
+      if (i === 0 || i === height - 1 || j === 0 || j === width - 1) {
+        edges[idx] = 0;
+        continue;
+      }
+
+      // Sobel kernels
+      const gx =
+        -data[(i - 1) * width + (j - 1)] +
+        data[(i - 1) * width + (j + 1)] +
+        -2 * data[i * width + (j - 1)] +
+        2 * data[i * width + (j + 1)] +
+        -data[(i + 1) * width + (j - 1)] +
+        data[(i + 1) * width + (j + 1)];
+
+      const gy =
+        -data[(i - 1) * width + (j - 1)] +
+        -2 * data[(i - 1) * width + j] +
+        -data[(i - 1) * width + (j + 1)] +
+        data[(i + 1) * width + (j - 1)] +
+        2 * data[(i + 1) * width + j] +
+        data[(i + 1) * width + (j + 1)];
+
+      const magnitude = Math.sqrt(gx * gx + gy * gy);
+      edges[idx] = Math.min(255, magnitude / 4);
+    }
+  }
+
+  return edges;
+}
+
 async function processImage(input, options = {}) {
-  const { width = 100, both = false, brightness = 0 } = options;
+  const { width = 100, both = false, brightness = 0, mode = "brightness" } = options;
 
   let imageBuffer;
   if (input.startsWith("http")) {
@@ -63,9 +109,9 @@ async function processImage(input, options = {}) {
     imageBuffer = Buffer.from(input);
   }
 
-  const normal = await convertToAscii(imageBuffer, { width, invert: false, brightness });
+  const normal = await convertToAscii(imageBuffer, { width, invert: false, brightness, mode });
   if (both) {
-    const inverted = await convertToAscii(imageBuffer, { width, invert: true, brightness });
+    const inverted = await convertToAscii(imageBuffer, { width, invert: true, brightness, mode });
     return { normal, inverted };
   }
 

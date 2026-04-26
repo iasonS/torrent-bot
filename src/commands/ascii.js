@@ -26,6 +26,15 @@ const data = new SlashCommandBuilder()
       .setDescription("Brightness adjustment (-50 to +50, default: 0)")
       .setMinValue(-50)
       .setMaxValue(50)
+  )
+  .addStringOption((opt) =>
+    opt
+      .setName("mode")
+      .setDescription("Conversion mode: brightness or edges (default: brightness)")
+      .addChoices(
+        { name: "Brightness", value: "brightness" },
+        { name: "Edges", value: "edges" }
+      )
   );
 
 async function execute(interaction) {
@@ -37,6 +46,7 @@ async function execute(interaction) {
     const inverted = interaction.options.getBoolean("inverted") || false;
     const both = interaction.options.getBoolean("both") || false;
     const brightness = interaction.options.getInteger("brightness") || 0;
+    const mode = interaction.options.getString("mode") || "brightness";
 
     // Handle attachment URLs from Discord
     let imageUrl = source;
@@ -44,7 +54,7 @@ async function execute(interaction) {
       imageUrl = interaction.options.data[0].attachment.url;
     }
 
-    const result = await processImage(imageUrl, { width, both, brightness });
+    const result = await processImage(imageUrl, { width, both, brightness, mode });
 
     if (both && result.inverted) {
       // Send normal version as file
