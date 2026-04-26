@@ -3,6 +3,7 @@ const searchCommand = require("./commands/search");
 const movieCommand = require("./commands/movie");
 const cancelCommand = require("./commands/cancel");
 const asciiCommand = require("./commands/ascii");
+const pingCommand = require("./commands/ping");
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID;
@@ -19,7 +20,7 @@ client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   const rest = new REST().setToken(DISCORD_BOT_TOKEN);
   try {
-    const commands = [searchCommand.data.toJSON(), movieCommand.data.toJSON(), cancelCommand.data.toJSON(), asciiCommand.data.toJSON()];
+    const commands = [searchCommand.data.toJSON(), movieCommand.data.toJSON(), cancelCommand.data.toJSON(), asciiCommand.data.toJSON(), pingCommand.data.toJSON()];
     if (DISCORD_CHANNEL_ID) {
       const channel = await client.channels.fetch(DISCORD_CHANNEL_ID);
       if (channel?.guild) {
@@ -61,6 +62,7 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.commandName === "movie") await movieCommand.execute(interaction);
   if (interaction.commandName === "cancel") await cancelCommand.execute(interaction);
   if (interaction.commandName === "ascii") await asciiCommand.execute(interaction);
+  if (interaction.commandName === "ping") await pingCommand.execute(interaction);
 });
 
 client.login(DISCORD_BOT_TOKEN);
