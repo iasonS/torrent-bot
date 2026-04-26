@@ -38,22 +38,7 @@ async function execute(interaction) {
 
     const result = await processImage(imageUrl, { width, both });
 
-    // Split long ASCII art into Discord message chunks (2000 char limit)
-    const splitMessage = (text, maxLength = 2000) => {
-      const messages = [];
-      let current = "";
-      for (const line of text.split("\n")) {
-        if ((current + line + "\n").length > maxLength) {
-          messages.push(current);
-          current = line + "\n";
-        } else {
-          current += line + "\n";
-        }
-      }
-      if (current) messages.push(current);
-      return messages;
-    };
-
+    // Split long ASCII art into Discord message chunks (1950 char limit for code blocks)
     const splitMessage = (text, maxLength = 1950) => {
       const messages = [];
       let current = "";
